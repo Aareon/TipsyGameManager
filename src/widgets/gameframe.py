@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from pathlib import Path
 
@@ -6,8 +7,11 @@ from src.widgets.customfont_label import CustomFont_Label, truetype_font
 
 RES_PATH = Path("__file__").parent.parent / "res"
 
-GIDOLE_18 = truetype_font(RES_PATH / "Gidole-Regular.ttf", 18)
-GIDOLE_12 = truetype_font(RES_PATH / "Gidole-Regular.ttf", 12)
+try:
+    GIDOLE_18 = truetype_font(RES_PATH / "Gidole-Regular.ttf", 18)
+    GIDOLE_12 = truetype_font(RES_PATH / "Gidole-Regular.ttf", 12)
+except OSError:
+    logging.error(f"Failed to open {str((RES_PATH / 'Gidole-Regular.ttf').resolve())}", exc_info=True)
 
 
 class GameFrame(tk.Frame):
