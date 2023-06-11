@@ -30,6 +30,21 @@ class CustomFont_Label(tk.Label):
             truetype_font = ImageFont.truetype(font_path, size)
 
         width, height = truetype_font.getsize(text)
+        print(f"Width, Height: ({width}, {height})")
+        # handle line wrapping
+        max_length = 400
+        if len(text) > max_length:
+            try:
+                for i in range(max_length, -1, -1):
+                    if text[i] == " ":
+                        text = text[:i+1] + "\n" + text[i:]
+                        break
+                width, height = truetype_font.getsize(text)
+                width = int(width / 1.5)
+                height = int(height * 2.2)
+                print(f"Wrapped text: {text}")
+            except IndexError:
+                pass
 
         image = Image.new("RGBA", (width, height), color=master["background"])
         draw = ImageDraw.Draw(image)

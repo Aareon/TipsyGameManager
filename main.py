@@ -1,12 +1,14 @@
+import logging
 import tkinter as tk
 from pathlib import Path
 from queue import Queue
 from threading import Thread
 from tkinter import filedialog, ttk
-from src.widgets.gameframe import GameFrame
-from src.widgets.lazyfiletree import LazyFileTree
 
-from gamedetector.game_detect import detect_folder
+from gamedetector.game_detect import NonSteamGame, SteamGame, detect_folder
+
+from src.widgets.game_treeview import GameTreeView
+from src.widgets.gameframe import GameFrame
 
 
 class MainApplication(tk.Tk):
@@ -20,7 +22,7 @@ class MainApplication(tk.Tk):
         self.managed_folder = Path()
         self.select_managed_folder()  # get user selection
 
-        self.managed_game_folders = []
+        self.managed_games = []
 
     def delete_frame_widgets(self):
         # TODO make this a decorator for making more one-off windows
@@ -28,7 +30,7 @@ class MainApplication(tk.Tk):
             widget.destroy()
         if hasattr(self, "done_button"):
             self.done_button.destroy()
-        print("Cleaned up `self.frame`")
+        logging.debug("Cleaned up `self.frame`")
 
     def select_managed_folder(self):
         """Window to prompt the user to select a games library folder to manage."""
@@ -77,14 +79,10 @@ class MainApplication(tk.Tk):
         else:
             print("Did not select folder to manage.")
 
-    def add_game_to_tree(self, game_folder, game_name):
-        game = {
-            "folder": game_folder,
-            "name": game_name,
-        }
-        if game not in self.managed_game_folders:
-            self.managed_game_folders.append(game)
-            self.file_tree.insert_node("", game_name, "")
+    def add_game_to_tree(self, game: SteamGame | NonSteamGame) -> None:
+        if game not in self.managed_games:
+            self.managed_games.append(game)
+            self.file_tree.insert_game(game)
 
     def parse_game_folders(self, library_path: Path) -> str:
         progress_bar = self.progress_bar
@@ -96,8 +94,8 @@ class MainApplication(tk.Tk):
         def target():
             while not q.empty():
                 game_folder = q.get(block=True)
-                game_name = detect_folder(game_folder)
-                self.add_game_to_tree(game_folder, game_name)
+                game = detect_folder(game_folder)
+                self.add_game_to_tree(game)
             progress_bar.stop()
 
         thread = Thread(target=target)
@@ -108,24 +106,41 @@ class MainApplication(tk.Tk):
             return
 
         self.delete_frame_widgets()
-        self.geometry("600x600")
+        self.geometry("800x600")
 
-        self.file_tree = LazyFileTree(self.frame)
+        self.file_tree = GameTreeView(self.frame)
         self.file_tree.pack(side="top", anchor="nw", fill="both", expand=True)
 
-        game_frame = GameFrame(self.frame, relief="sunken", bg="gray", border=2)
-        game_frame.pack(side="top", anchor="nw", fill="both", expand=True)
+        self.game_frame = GameFrame(self.frame, relief="sunken", bg="gray", border=2)
+        self.game_frame.pack(side="top", anchor="n", fill="both", expand=True)
 
         self.progress_bar = ttk.Progressbar(
-            game_frame, orient="horizontal", mode="indeterminate", length=100
+            self, orient="horizontal", mode="indeterminate", length=100
         )
-        self.progress_bar.pack(side="bottom", anchor="sw", fill="x", expand=True)
+        self.progress_bar.pack(side="bottom", anchor="sw", fill="x")
 
         self.frame.pack(fill="both", expand=True)
 
         # start checking game folders
         self.progress_bar.start()
         self.parse_game_folders(self.managed_folder)
+
+    def show_game(self, game: SteamGame | NonSteamGame) -> None:
+        self.game_frame.set_game(game)
+
+    def find_game_to_show(self, event):
+        selected_item = self.file_tree.tree.focus()
+        appid, name, version = self.file_tree.tree.item(selected_item)["values"]
+        # get game from appid/name
+        if appid:
+            for g in self.managed_games:
+                if isinstance(g, SteamGame) and g.appid == appid:
+                    self.show_game(g)
+                    return
+        for g in self.managed_games:
+            if g.name == name:
+                self.show_game(g)
+                return
 
 
 if __name__ == "__main__":
